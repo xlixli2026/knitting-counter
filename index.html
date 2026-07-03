@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Knitting Counter</title>
+<style>
+  :root {
+    --bg: #faf9f7;
+    --card: #ffffff;
+    --text: #2b2b2b;
+    --muted: #9a948c;
+    --line: #ece8e2;
+    --accent: #3f8f86;        /* muted teal */
+    --accent-soft: #eaf3f1;
+    --btn: #f3f0ec;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.4;
+  }
+
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 16px 64px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    margin: 0;
+    color: var(--text);
+  }
+
+  header p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* Each .row holds 1 or 2 cards, always centered. */
+  .row {
+    display: flex;
+    gap: 18px;
+    justify-content: center;
+  }
+
+  .card {
+    position: relative;
+    flex: 0 0 100%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 50px 38px 18px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: opacity .18s ease, transform .18s ease;
+  }
+
+  /* Compact mode: as soon as any row has two cards, ALL cards shrink to
+     half width so the layout stays consistent. Applied automatically. */
+  .list.compact .card,
+  .row.pair-preview .card {
+    flex: 0 0 calc(50% - 9px);
+    padding: 46px 20px 14px;
+  }
+  .list.compact .label,
+  .row.pair-preview .label { left: 54px; right: 54px; font-size: 13px; }
+  .list.compact .rowmark,
+  .row.pair-preview .rowmark { font-size: 11px; padding: 3px 7px; }
+  .list.compact .counter-row,
+  .row.pair-preview .counter-row { gap: 12px; }
+  .list.compact .step,
+  .row.pair-preview .step { width: 44px; height: 44px; font-size: 24px; }
+  .list.compact .count,
+  .row.pair-preview .count { font-size: 34px; }
+  .list.compact .drag,
+  .row.pair-preview .drag { left: 0; width: 14px; }
+
+  @media (max-width: 420px) {
+    .list.compact .counter-row,
+    .row.pair-preview .counter-row { gap: 8px; }
+    .list.compact .step,
+    .row.pair-preview .step { width: 40px; height: 40px; font-size: 22px; }
+    .list.compact .count,
+    .row.pair-preview .count { font-size: 28px; }
+  }
+
+  .card.removing {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  .remove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 20px;
+    line-height: 1;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .remove:hover, .remove:focus-visible { color: var(--text); background: var(--btn); outline: none; }
+
+  .rowmark {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    font-size: 11.5px;
+    letter-spacing: 0.3px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .rowmark:hover, .rowmark:focus-visible { color: var(--text); background: var(--btn); outline: none; }
+
+  /* Centered label in the top row — more visible than the rowmark pill. */
+  .label {
+    position: absolute;
+    top: 12px;
+    left: 118px;
+    right: 118px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 14.5px;
+    font-weight: 500;
+    text-align: center;
+    padding: 3px 4px;
+    border-radius: 6px;
+    outline: none;
+  }
+  .label::placeholder { color: var(--muted); font-weight: 400; }
+  .label:hover { background: var(--bg); }
+  .label:focus { background: var(--btn); }
+
+  /* drag-to-reorder */
+  .drag {
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: grab;
+    touch-action: none;      /* handle owns the gesture — page still scrolls elsewhere */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .drag:hover, .drag:focus-visible { color: var(--text); background: var(--btn); outline: none; }
+
+  .card.dragging {
+    z-index: 5;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.14);
+    opacity: 0.97;
+  }
+  .card.dragging .drag { cursor: grabbing; }
+
+  .ph-row {
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+  }
+  .ph-card {
+    flex: 0 0 calc(50% - 9px);
+    align-self: stretch;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+  }
+
+  .counter-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  .step {
+    width: 60px;
+    height: 60px;
+    flex: 0 0 auto;
+    border: 1px solid var(--line);
+    background: var(--btn);
+    color: var(--text);
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 1;
+    border-radius: 50%;
+    cursor: pointer;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color .15s ease, border-color .15s ease, transform .1s ease;
+  }
+  .step:active { transform: scale(0.94); }
+  .step.plus {
+    background: var(--accent-soft);
+    border-color: var(--accent-soft);
+    color: var(--accent);
+  }
+  @media (hover: hover) {
+    .step:hover { background: #eae5de; border-color: #ddd6cd; }
+    .step.plus:hover { background: #d9eae6; border-color: #c6dfda; }
+  }
+  .step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .count {
+    flex: 1 1 auto;
+    text-align: center;
+    font-size: 52px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 0;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  .card-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
+  }
+
+  .reset {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12.5px;
+    letter-spacing: 0.3px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .reset:hover, .reset:focus-visible { color: var(--text); background: var(--btn); outline: none; }
+
+  .add {
+    display: block;
+    width: 100%;
+    margin-top: 22px;
+    padding: 15px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: 12px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .add:active { transform: scale(0.99); }
+  .add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 40px 0 8px;
+  }
+
+  /* History of the last 5 reset / removed counts */
+  .history {
+    margin-top: 36px;
+  }
+  .history h2 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+  }
+  .h-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  .h-row:last-child { border-bottom: none; }
+  .h-count {
+    flex: 0 0 auto;
+    min-width: 42px;
+    text-align: right;
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .h-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 13.5px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .h-meta {
+    flex: 0 0 auto;
+    font-size: 12.5px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* Confirm dialog */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(43, 43, 43, 0.32);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 10;
+  }
+  .overlay[hidden] { display: none; }
+  .modal {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: 320px;
+    width: 100%;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  }
+  .modal p {
+    margin: 0 0 18px;
+    font-size: 15px;
+    text-align: center;
+    overflow-wrap: break-word;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+  }
+  .modal-actions button {
+    flex: 1 1 0;
+    padding: 11px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #modal-cancel {
+    border: 1px solid var(--line);
+    background: var(--btn);
+    color: var(--text);
+  }
+  #modal-ok {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+  .modal-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Knitting Counter</h1>
+      <p>Tap to count. Saved on this device.</p>
+    </header>
+    <div class="list" id="list"></div>
+    <button class="add" id="add" type="button">+ Add counter</button>
+    <section class="history" id="history" hidden></section>
+  </div>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="modal-msg">
+      <p id="modal-msg"></p>
+      <div class="modal-actions">
+        <button id="modal-cancel" type="button">Cancel</button>
+        <button id="modal-ok" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "stitchCounter.v1";
+  var HISTORY_MAX = 5;
+
+  function seed() {
+    return {
+      version: 1,
+      nextId: 2,
+      counters: [{ id: "c_1", count: 0, note: "", rowMark: "start" }],
+      rows: [["c_1"]],
+      history: []
+    };
+  }
+
+  var state = loadState();
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return seed();
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.counters)) return seed();
+      // minimal normalization
+      var out = { version: 1, history: [] };
+      out.nextId = typeof data.nextId === "number" ? data.nextId : data.counters.length + 1;
+      out.counters = data.counters.map(function (c) {
+        return {
+          id: String(c && c.id != null ? c.id : "c_" + Math.random().toString(36).slice(2)),
+          count: Math.max(0, Math.floor(Number(c && c.count) || 0)),
+          note: typeof (c && c.note) === "string" ? c.note : "",
+          rowMark: (c && c.rowMark) === "end" ? "end" : "start"
+        };
+      });
+
+      // Rows: 1–2 counter ids each. Migrate old per-card `half` flags by
+      // pairing consecutive half-width counters; otherwise one row per counter.
+      var validIds = {};
+      out.counters.forEach(function (c) { validIds[c.id] = true; });
+      var seen = {};
+      var rows = [];
+      if (Array.isArray(data.rows)) {
+        data.rows.forEach(function (r) {
+          if (!Array.isArray(r)) return;
+          var ids = r.map(String).filter(function (id) {
+            if (!validIds[id] || seen[id]) return false;
+            seen[id] = true;
+            return true;
+          }).slice(0, 2);
+          if (ids.length) rows.push(ids);
+        });
+      } else {
+        for (var i = 0; i < data.counters.length; i++) {
+          var id = out.counters[i].id;
+          if (seen[id]) continue;
+          var isHalf = data.counters[i] && data.counters[i].half === true;
+          var nextRaw = data.counters[i + 1];
+          if (isHalf && nextRaw && nextRaw.half === true && !seen[out.counters[i + 1].id]) {
+            rows.push([id, out.counters[i + 1].id]);
+            seen[id] = seen[out.counters[i + 1].id] = true;
+          } else {
+            rows.push([id]);
+            seen[id] = true;
+          }
+        }
+      }
+      // any counters not covered by rows get their own row
+      out.counters.forEach(function (c) {
+        if (!seen[c.id]) rows.push([c.id]);
+      });
+      out.rows = rows;
+
+      out.history = (Array.isArray(data.history) ? data.history : [])
+        .slice(0, HISTORY_MAX)
+        .map(function (h) {
+          return {
+            count: Math.max(0, Math.floor(Number(h && h.count) || 0)),
+            note: typeof (h && h.note) === "string" ? h.note : "",
+            action: (h && h.action) === "removed" ? "removed" : "reset",
+            ts: Number(h && h.ts) || 0
+          };
+        });
+      return out;
+    } catch (e) {
+      return seed();
+    }
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      /* private mode / quota — keep working in-memory */
+    }
+  }
+
+  function find(id) {
+    for (var i = 0; i < state.counters.length; i++) {
+      if (state.counters[i].id === id) return state.counters[i];
+    }
+    return null;
+  }
+
+  function isCompact() {
+    return state.rows.some(function (r) { return r.length === 2; });
+  }
+
+  function pushHistory(counter, action) {
+    state.history.unshift({
+      count: counter.count,
+      note: counter.note,
+      action: action,
+      ts: Date.now()
+    });
+    state.history = state.history.slice(0, HISTORY_MAX);
+  }
+
+  function addCounter() {
+    var id = "c_" + state.nextId++;
+    state.counters.push({ id: id, count: 0, note: "", rowMark: "start" });
+    state.rows.push([id]);
+    saveState();
+    render();
+  }
+
+  function removeCounter(id) {
+    var c = find(id);
+    if (!c) return;
+    if (c.count > 0) pushHistory(c, "removed");  // a 0 counter isn't worth remembering
+    if (state.counters.length === 1) {
+      // never drop to zero counters — removing the last one resets it instead
+      c.count = 0;
+      c.note = "";
+      c.rowMark = "start";
+    } else {
+      state.counters = state.counters.filter(function (x) { return x.id !== id; });
+      state.rows = state.rows.map(function (r) {
+        return r.filter(function (x) { return x !== id; });
+      }).filter(function (r) { return r.length > 0; });
+    }
+    saveState();
+    render();
+  }
+
+  function increment(id) {
+    var c = find(id);
+    if (!c) return;
+    c.count = Math.min(Number.MAX_SAFE_INTEGER, c.count + 1);
+    saveState();
+    render();
+  }
+
+  function decrement(id) {
+    var c = find(id);
+    if (!c) return;
+    c.count = Math.max(0, c.count - 1);
+    saveState();
+    render();
+  }
+
+  function resetCounter(id) {
+    var c = find(id);
+    if (!c || c.count === 0) return;
+    pushHistory(c, "reset");
+    c.count = 0;
+    saveState();
+    render();
+  }
+
+  function toggleRowMark(id) {
+    var c = find(id);
+    if (!c) return;
+    c.rowMark = c.rowMark === "start" ? "end" : "start";
+    saveState();
+    render();
+  }
+
+  function updateNote(id, text) {
+    var c = find(id);
+    if (!c) return;
+    c.note = text;            // stored as typed; trimmed on focusout
+    saveState();
+    // no render(): keep the input focused/cursor intact
+  }
+
+  // ----- confirm dialog -----
+  var overlay = document.getElementById("overlay");
+  var modalMsg = document.getElementById("modal-msg");
+  var modalOk = document.getElementById("modal-ok");
+  var modalCancel = document.getElementById("modal-cancel");
+  var pendingOk = null;
+
+  function showConfirm(message, okLabel, onOk) {
+    modalMsg.textContent = message;
+    modalOk.textContent = okLabel;
+    pendingOk = onOk;
+    overlay.hidden = false;
+    modalCancel.focus();
+  }
+
+  function closeConfirm() {
+    overlay.hidden = true;
+    pendingOk = null;
+  }
+
+  modalOk.addEventListener("click", function () {
+    var fn = pendingOk;
+    closeConfirm();
+    if (fn) fn();
+  });
+  modalCancel.addEventListener("click", closeConfirm);
+  overlay.addEventListener("click", function (e) {
+    if (e.target === overlay) closeConfirm();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !overlay.hidden) closeConfirm();
+  });
+
+  function confirmReset(id) {
+    var c = find(id);
+    if (!c || c.count === 0) return;  // nothing to reset
+    var name = c.note ? "“" + c.note + "”" : "this counter";
+    showConfirm("Reset " + name + " from " + c.count + " to 0?", "Reset", function () {
+      resetCounter(id);
+    });
+  }
+
+  function confirmRemove(id, card) {
+    var c = find(id);
+    if (!c) return;
+    var doRemove = function () {
+      card.classList.add("removing");
+      setTimeout(function () { removeCounter(id); }, 160);
+    };
+    if (c.count === 0) {
+      doRemove();  // nothing counted yet — no confirm needed
+      return;
+    }
+    var name = c.note ? "“" + c.note + "”" : "this counter";
+    showConfirm("Remove " + name + "?", "Remove", doRemove);
+  }
+
+  // ----- rendering -----
+  var listEl = document.getElementById("list");
+  var historyEl = document.getElementById("history");
+
+  function fmtTime(ts) {
+    if (!ts) return "";
+    return new Date(ts).toLocaleString([], {
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+    });
+  }
+
+  function buildCard(c, compact) {
+    var card = document.createElement("div");
+    card.className = "card";
+    card.dataset.id = c.id;
+
+    var rowmark = document.createElement("button");
+    rowmark.className = "rowmark";
+    rowmark.type = "button";
+    rowmark.dataset.action = "rowmark";
+    rowmark.setAttribute("aria-label", "Toggle start or end of row");
+    // shorter text when cards are compact
+    rowmark.textContent = (c.rowMark === "end" ? "end" : "start") + (compact ? "" : " of row");
+    card.appendChild(rowmark);
+
+    var label = document.createElement("input");
+    label.className = "label";
+    label.type = "text";
+    label.value = c.note;
+    label.placeholder = "…";
+    label.dataset.action = "note";
+    label.setAttribute("aria-label", "Counter label");
+    card.appendChild(label);
+
+    var remove = document.createElement("button");
+    remove.className = "remove";
+    remove.type = "button";
+    remove.dataset.action = "remove";
+    remove.setAttribute("aria-label", "Remove counter");
+    remove.textContent = "×";
+    card.appendChild(remove);
+
+    if (state.counters.length > 1) {
+      var drag = document.createElement("button");
+      drag.className = "drag";
+      drag.type = "button";
+      drag.setAttribute("aria-label", "Drag to reorder");
+      drag.textContent = "⠿";
+      card.appendChild(drag);
+    }
+
+    var row = document.createElement("div");
+    row.className = "counter-row";
+
+    var minus = document.createElement("button");
+    minus.className = "step minus";
+    minus.type = "button";
+    minus.dataset.action = "dec";
+    minus.setAttribute("aria-label", "Decrease");
+    minus.textContent = "−";
+
+    var count = document.createElement("div");
+    count.className = "count";
+    count.title = "Double-tap to reset";
+    count.textContent = c.count;
+
+    var plus = document.createElement("button");
+    plus.className = "step plus";
+    plus.type = "button";
+    plus.dataset.action = "inc";
+    plus.setAttribute("aria-label", "Increase");
+    plus.textContent = "+";
+
+    row.appendChild(minus);
+    row.appendChild(count);
+    row.appendChild(plus);
+    card.appendChild(row);
+
+    var footer = document.createElement("div");
+    footer.className = "card-footer";
+    var reset = document.createElement("button");
+    reset.className = "reset";
+    reset.type = "button";
+    reset.dataset.action = "reset";
+    reset.textContent = "Reset";
+    footer.appendChild(reset);
+    card.appendChild(footer);
+
+    return card;
+  }
+
+  function render() {
+    listEl.innerHTML = "";
+    var compact = isCompact();
+    listEl.classList.toggle("compact", compact);
+
+    if (state.counters.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No counters yet.";
+      listEl.appendChild(empty);
+    }
+
+    state.rows.forEach(function (rowIds) {
+      var rowEl = document.createElement("div");
+      rowEl.className = "row";
+      rowIds.forEach(function (id) {
+        var c = find(id);
+        if (c) rowEl.appendChild(buildCard(c, compact));
+      });
+      listEl.appendChild(rowEl);
+    });
+
+    renderHistory();
+  }
+
+  function renderHistory() {
+    historyEl.innerHTML = "";
+    if (state.history.length === 0) {
+      historyEl.hidden = true;
+      return;
+    }
+    historyEl.hidden = false;
+
+    var title = document.createElement("h2");
+    title.textContent = "History";
+    historyEl.appendChild(title);
+
+    state.history.forEach(function (h) {
+      var row = document.createElement("div");
+      row.className = "h-row";
+
+      var count = document.createElement("div");
+      count.className = "h-count";
+      count.textContent = h.count;
+
+      var label = document.createElement("span");
+      label.className = "h-label";
+      label.textContent = h.note || "Counter";
+
+      var meta = document.createElement("span");
+      meta.className = "h-meta";
+      meta.textContent = "· " + h.action + " · " + fmtTime(h.ts);
+
+      row.appendChild(count);
+      row.appendChild(label);
+      row.appendChild(meta);
+      historyEl.appendChild(row);
+    });
+  }
+
+  // ----- events (delegated — survive re-renders) -----
+  listEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    var card = e.target.closest(".card");
+    if (!card) return;
+    var id = card.dataset.id;
+    var action = btn.dataset.action;
+
+    if (action === "inc") increment(id);
+    else if (action === "dec") decrement(id);
+    else if (action === "reset") confirmReset(id);
+    else if (action === "rowmark") toggleRowMark(id);
+    else if (action === "remove") confirmRemove(id, card);
+  });
+
+  // Double-tap / double-click the big number also resets (with confirm).
+  listEl.addEventListener("dblclick", function (e) {
+    if (!e.target.closest(".count")) return;
+    var card = e.target.closest(".card");
+    if (!card) return;
+    confirmReset(card.dataset.id);
+  });
+
+  listEl.addEventListener("input", function (e) {
+    if (e.target.dataset.action !== "note") return;
+    var card = e.target.closest(".card");
+    if (!card) return;
+    updateNote(card.dataset.id, e.target.value);
+  });
+
+  // Trim whitespace-only labels when the field loses focus.
+  listEl.addEventListener("focusout", function (e) {
+    if (e.target.dataset.action !== "note") return;
+    var card = e.target.closest(".card");
+    if (!card) return;
+    var trimmed = e.target.value.trim();
+    if (trimmed !== e.target.value) {
+      e.target.value = trimmed;
+      updateNote(card.dataset.id, trimmed);
+    }
+  });
+
+  // ----- drag to reorder / pair -----
+  // Drop a card between rows → it gets its own row. Drop it on the left or
+  // right side of a row that has one card → they pair up and share the row.
+  // Width adapts automatically: any pair → all cards compact; no pairs → full.
+  var dragState = null;
+
+  listEl.addEventListener("pointerdown", function (e) {
+    var handle = e.target.closest(".drag");
+    if (!handle || dragState) return;
+    var card = handle.closest(".card");
+    if (!card) return;
+    e.preventDefault();
+
+    var rect = card.getBoundingClientRect();
+    var srcRow = card.parentNode;
+    var ph = document.createElement("div");
+    var srcHasPartner = srcRow.querySelectorAll(".card").length === 2;
+
+    if (srcHasPartner) {
+      ph.className = "ph-card";
+      srcRow.insertBefore(ph, card);
+      srcRow.classList.add("pair-preview");
+    } else {
+      ph.className = "ph-row";
+      ph.style.height = rect.height + "px";
+      listEl.insertBefore(ph, srcRow);
+    }
+
+    card.classList.add("dragging");
+    card.style.position = "fixed";
+    card.style.left = rect.left + "px";
+    card.style.top = rect.top + "px";
+    card.style.width = rect.width + "px";
+    // fixed-positioned, so this doesn't affect layout — frees the source row
+    listEl.appendChild(card);
+    if (!srcHasPartner) srcRow.remove();
+
+    dragState = {
+      card: card, ph: ph,
+      height: rect.height,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      pointerId: e.pointerId
+    };
+    handle.setPointerCapture(e.pointerId);
+  });
+
+  function clearPairPreviews() {
+    Array.prototype.forEach.call(listEl.querySelectorAll(".row.pair-preview"), function (r) {
+      if (!r.querySelector(".ph-card") || r.querySelectorAll(".card").length === 2) {
+        r.classList.remove("pair-preview");
+      }
+    });
+  }
+
+  listEl.addEventListener("pointermove", function (e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    dragState.card.style.top = (e.clientY - dragState.offsetY) + "px";
+    dragState.card.style.left = (e.clientX - dragState.offsetX) + "px";
+
+    var px = e.clientX, py = e.clientY;
+    var ph = dragState.ph;
+    var rows = Array.prototype.filter.call(listEl.children, function (el) {
+      return el.classList.contains("row") && el.querySelector(".card");
+    });
+
+    // Decide where the card would land: its own new row, or paired beside
+    // a lone card (pointer on the outer third of that card).
+    var desired = { type: "row-end" };
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i].getBoundingClientRect();
+      if (py < r.top) { desired = { type: "row-before", row: rows[i] }; break; }
+      if (py <= r.bottom) {
+        var cards = rows[i].querySelectorAll(".card");
+        if (cards.length === 1) {
+          var cr = cards[0].getBoundingClientRect();
+          if (px < cr.left + cr.width * 0.35) desired = { type: "pair", row: rows[i], side: "before", ref: cards[0] };
+          else if (px > cr.right - cr.width * 0.35) desired = { type: "pair", row: rows[i], side: "after", ref: cards[0] };
+          else desired = py < r.top + r.height / 2
+            ? { type: "row-before", row: rows[i] }
+            : { type: "row-after", row: rows[i] };
+        } else {
+          desired = py < r.top + r.height / 2
+            ? { type: "row-before", row: rows[i] }
+            : { type: "row-after", row: rows[i] };
+        }
+        break;
+      }
+    }
+
+    var parent, ref;
+    if (desired.type === "pair") {
+      parent = desired.row;
+      ref = desired.side === "before" ? desired.ref : null;
+    } else {
+      parent = listEl;
+      ref = desired.type === "row-before" ? desired.row
+          : desired.type === "row-after" ? desired.row.nextSibling
+          : null;
+    }
+
+    // already in the right spot? (insertBefore(ph, ph) is a harmless no-op,
+    // but skipping avoids style churn)
+    if (ph.parentNode === parent && (ph.nextSibling === ref || ph === ref)) return;
+
+    if (desired.type === "pair") {
+      ph.className = "ph-card";
+      ph.style.height = "";
+      parent.insertBefore(ph, ref);
+      parent.classList.add("pair-preview");
+    } else {
+      ph.className = "ph-row";
+      ph.style.height = dragState.height + "px";
+      parent.insertBefore(ph, ref);
+    }
+    clearPairPreviews();
+  });
+
+  function endDrag() {
+    var s = dragState;
+    if (!s) return;
+    dragState = null;
+
+    var dragId = s.card.dataset.id;
+    var newRows = [];
+    Array.prototype.forEach.call(listEl.children, function (el) {
+      if (el === s.ph) {
+        newRows.push([dragId]);
+      } else if (el.classList.contains("row")) {
+        var ids = [];
+        Array.prototype.forEach.call(el.children, function (child) {
+          if (child === s.ph) ids.push(dragId);
+          else if (child.classList.contains("card") && child !== s.card) ids.push(child.dataset.id);
+        });
+        if (ids.length) newRows.push(ids.slice(0, 2));
+      }
+    });
+
+    state.rows = newRows;
+    // keep the flat counter order in reading order
+    var flat = [];
+    newRows.forEach(function (r) { r.forEach(function (id) { flat.push(id); }); });
+    state.counters.sort(function (a, b) {
+      return flat.indexOf(a.id) - flat.indexOf(b.id);
+    });
+    saveState();
+    render();   // rebuilds everything — placeholder and inline styles included
+  }
+
+  listEl.addEventListener("pointerup", function (e) {
+    if (dragState && e.pointerId === dragState.pointerId) endDrag();
+  });
+  listEl.addEventListener("pointercancel", function (e) {
+    if (dragState && e.pointerId === dragState.pointerId) endDrag();
+  });
+
+  document.getElementById("add").addEventListener("click", addCounter);
+
+  render();
+})();
+</script>
+</body>
+</html>
