@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Knitting Counter</title>
+<!-- Hosting extras: icons / manifest / iOS home-screen. All optional — the
+     app still works as a lone file:// page when these 404. -->
+<meta name="theme-color" content="#faf9f7">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Knitting">
 <style>
   :root {
     --bg: #faf9f7;
@@ -38,6 +47,7 @@
   }
 
   header {
+    position: relative;
     text-align: center;
     margin-bottom: 28px;
   }
@@ -55,6 +65,95 @@
     font-size: 13px;
     color: var(--muted);
   }
+
+  .back {
+    position: absolute;
+    left: 0;
+    top: 3px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .back:hover, .back:focus-visible { color: var(--text); background: var(--btn); outline: none; }
+
+  /* Editable project name, styled like the h1. Equal side margins keep it
+     centered while clearing the ‹ Projects button on the left. */
+  .project-name {
+    display: block;
+    width: calc(100% - 180px);
+    margin: 0 auto;
+    padding: 2px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    text-align: center;
+    border-radius: 8px;
+    outline: none;
+  }
+  .project-name::placeholder { color: var(--muted); font-weight: 400; }
+  .project-name:hover, .project-name:focus { background: var(--btn); }
+
+  /* Projects screen */
+  .plist {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .prow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 12px 20px 18px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    cursor: pointer;
+  }
+  @media (hover: hover) {
+    .prow:hover { border-color: #ddd6cd; }
+  }
+  .p-dot {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: transparent;   /* only the current project shows the dot */
+  }
+  .prow.current .p-dot { background: var(--accent); }
+  .p-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .p-name.untitled { color: var(--muted); font-weight: 400; }
+  .p-remove {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 20px;
+    line-height: 1;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .p-remove:hover, .p-remove:focus-visible { color: var(--text); background: var(--btn); outline: none; }
 
   .list {
     display: flex;
@@ -304,9 +403,29 @@
     padding: 40px 0 8px;
   }
 
-  /* History of the last 5 reset / removed counts */
+  /* History of the last 5 reset / removed counts — tucked behind a clock
+     icon at the top right, since it's rarely needed. Sits in the header's
+     bottom margin so the list doesn't shift when the icon is hidden. */
+  .history-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: -16px 0 10px auto;
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 50%;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .history-toggle[hidden] { display: none; }
+  .history-toggle:hover, .history-toggle:focus-visible { color: var(--text); background: var(--btn); outline: none; }
+  .history-toggle.open { color: var(--text); background: var(--btn); }
+
   .history {
-    margin-top: 36px;
+    margin-top: 20px;
   }
   .history h2 {
     margin: 0 0 6px;
@@ -402,14 +521,26 @@
 </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap" id="screen-project">
     <header>
-      <h1>Knitting Counter</h1>
-      <p>Tap to count. Saved on this device.</p>
+      <button class="back" id="to-projects" type="button">‹ Projects</button>
+      <input class="project-name" id="project-name" type="text" placeholder="Untitled project" aria-label="Project name">
     </header>
+    <button class="history-toggle" id="history-toggle" type="button" aria-label="Show history" aria-expanded="false" title="History" hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+    </button>
     <div class="list" id="list"></div>
     <button class="add" id="add" type="button">+ Add counter</button>
     <section class="history" id="history" hidden></section>
+  </div>
+
+  <div class="wrap" id="screen-projects" hidden>
+    <header>
+      <h1>Projects</h1>
+      <p>Saved on this device.</p>
+    </header>
+    <div class="plist" id="plist"></div>
+    <button class="add" id="add-project" type="button">+ Add project</button>
   </div>
 
   <div class="overlay" id="overlay" hidden>
@@ -431,81 +562,123 @@
 
   function seed() {
     return {
-      version: 1,
+      version: 2,
       nextId: 2,
-      counters: [{ id: "c_1", count: 0, note: "", rowMark: "start" }],
-      rows: [["c_1"]],
-      history: []
+      nextProjectId: 2,
+      currentProjectId: "p_1",
+      projects: [{
+        id: "p_1",
+        name: "Project 1",
+        counters: [{ id: "c_1", count: 0, note: "", rowMark: "start" }],
+        rows: [["c_1"]],
+        history: []
+      }]
     };
   }
 
   var state = loadState();
+
+  // Normalize one project's counters / rows / history (also migrates the
+  // legacy per-card `half` flags into rows).
+  function normalizeProject(p) {
+    var out = {
+      id: String(p.id != null ? p.id : "p_" + Math.random().toString(36).slice(2)),
+      name: typeof p.name === "string" ? p.name : "",
+      history: []
+    };
+    out.counters = p.counters.map(function (c) {
+      return {
+        id: String(c && c.id != null ? c.id : "c_" + Math.random().toString(36).slice(2)),
+        count: Math.max(0, Math.floor(Number(c && c.count) || 0)),
+        note: typeof (c && c.note) === "string" ? c.note : "",
+        rowMark: (c && c.rowMark) === "end" ? "end" : "start"
+      };
+    });
+
+    // Rows: 1–2 counter ids each. Migrate old per-card `half` flags by
+    // pairing consecutive half-width counters; otherwise one row per counter.
+    var validIds = {};
+    out.counters.forEach(function (c) { validIds[c.id] = true; });
+    var seen = {};
+    var rows = [];
+    if (Array.isArray(p.rows)) {
+      p.rows.forEach(function (r) {
+        if (!Array.isArray(r)) return;
+        var ids = r.map(String).filter(function (id) {
+          if (!validIds[id] || seen[id]) return false;
+          seen[id] = true;
+          return true;
+        }).slice(0, 2);
+        if (ids.length) rows.push(ids);
+      });
+    } else {
+      for (var i = 0; i < p.counters.length; i++) {
+        var id = out.counters[i].id;
+        if (seen[id]) continue;
+        var isHalf = p.counters[i] && p.counters[i].half === true;
+        var nextRaw = p.counters[i + 1];
+        if (isHalf && nextRaw && nextRaw.half === true && !seen[out.counters[i + 1].id]) {
+          rows.push([id, out.counters[i + 1].id]);
+          seen[id] = seen[out.counters[i + 1].id] = true;
+        } else {
+          rows.push([id]);
+          seen[id] = true;
+        }
+      }
+    }
+    // any counters not covered by rows get their own row
+    out.counters.forEach(function (c) {
+      if (!seen[c.id]) rows.push([c.id]);
+    });
+    out.rows = rows;
+
+    out.history = (Array.isArray(p.history) ? p.history : [])
+      .slice(0, HISTORY_MAX)
+      .map(function (h) {
+        return {
+          count: Math.max(0, Math.floor(Number(h && h.count) || 0)),
+          note: typeof (h && h.note) === "string" ? h.note : "",
+          action: (h && h.action) === "removed" ? "removed" : "reset",
+          ts: Number(h && h.ts) || 0
+        };
+      });
+    return out;
+  }
 
   function loadState() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return seed();
       var data = JSON.parse(raw);
-      if (!data || !Array.isArray(data.counters)) return seed();
-      // minimal normalization
-      var out = { version: 1, history: [] };
-      out.nextId = typeof data.nextId === "number" ? data.nextId : data.counters.length + 1;
-      out.counters = data.counters.map(function (c) {
-        return {
-          id: String(c && c.id != null ? c.id : "c_" + Math.random().toString(36).slice(2)),
-          count: Math.max(0, Math.floor(Number(c && c.count) || 0)),
-          note: typeof (c && c.note) === "string" ? c.note : "",
-          rowMark: (c && c.rowMark) === "end" ? "end" : "start"
-        };
-      });
+      if (!data) return seed();
 
-      // Rows: 1–2 counter ids each. Migrate old per-card `half` flags by
-      // pairing consecutive half-width counters; otherwise one row per counter.
-      var validIds = {};
-      out.counters.forEach(function (c) { validIds[c.id] = true; });
-      var seen = {};
-      var rows = [];
-      if (Array.isArray(data.rows)) {
-        data.rows.forEach(function (r) {
-          if (!Array.isArray(r)) return;
-          var ids = r.map(String).filter(function (id) {
-            if (!validIds[id] || seen[id]) return false;
-            seen[id] = true;
-            return true;
-          }).slice(0, 2);
-          if (ids.length) rows.push(ids);
-        });
+      var rawProjects, nextProjectId;
+      if (Array.isArray(data.projects)) {
+        rawProjects = data.projects;
+        nextProjectId = typeof data.nextProjectId === "number" ? data.nextProjectId : data.projects.length + 1;
+      } else if (Array.isArray(data.counters)) {
+        // v1 schema: counters lived at the top level — wrap them in one project
+        rawProjects = [{ id: "p_1", name: "Project 1", counters: data.counters, rows: data.rows, history: data.history }];
+        nextProjectId = 2;
       } else {
-        for (var i = 0; i < data.counters.length; i++) {
-          var id = out.counters[i].id;
-          if (seen[id]) continue;
-          var isHalf = data.counters[i] && data.counters[i].half === true;
-          var nextRaw = data.counters[i + 1];
-          if (isHalf && nextRaw && nextRaw.half === true && !seen[out.counters[i + 1].id]) {
-            rows.push([id, out.counters[i + 1].id]);
-            seen[id] = seen[out.counters[i + 1].id] = true;
-          } else {
-            rows.push([id]);
-            seen[id] = true;
-          }
-        }
+        return seed();
       }
-      // any counters not covered by rows get their own row
-      out.counters.forEach(function (c) {
-        if (!seen[c.id]) rows.push([c.id]);
-      });
-      out.rows = rows;
 
-      out.history = (Array.isArray(data.history) ? data.history : [])
-        .slice(0, HISTORY_MAX)
-        .map(function (h) {
-          return {
-            count: Math.max(0, Math.floor(Number(h && h.count) || 0)),
-            note: typeof (h && h.note) === "string" ? h.note : "",
-            action: (h && h.action) === "removed" ? "removed" : "reset",
-            ts: Number(h && h.ts) || 0
-          };
-        });
+      var out = { version: 2, nextProjectId: nextProjectId, projects: [] };
+      var seenPid = {};
+      rawProjects.forEach(function (p) {
+        if (!p || !Array.isArray(p.counters)) return;
+        var proj = normalizeProject(p);
+        if (seenPid[proj.id]) proj.id = "p_" + Math.random().toString(36).slice(2);
+        seenPid[proj.id] = true;
+        out.projects.push(proj);
+      });
+      if (!out.projects.length) return seed();
+
+      var totalCounters = 0;
+      out.projects.forEach(function (p) { totalCounters += p.counters.length; });
+      out.nextId = typeof data.nextId === "number" ? data.nextId : totalCounters + 1;
+      out.currentProjectId = seenPid[String(data.currentProjectId)] ? String(data.currentProjectId) : out.projects[0].id;
       return out;
     } catch (e) {
       return seed();
@@ -520,31 +693,49 @@
     }
   }
 
+  // The project currently being worked on. All counter operations act on it.
+  function cur() {
+    for (var i = 0; i < state.projects.length; i++) {
+      if (state.projects[i].id === state.currentProjectId) return state.projects[i];
+    }
+    return state.projects[0];
+  }
+
+  function findProject(id) {
+    for (var i = 0; i < state.projects.length; i++) {
+      if (state.projects[i].id === id) return state.projects[i];
+    }
+    return null;
+  }
+
   function find(id) {
-    for (var i = 0; i < state.counters.length; i++) {
-      if (state.counters[i].id === id) return state.counters[i];
+    var counters = cur().counters;
+    for (var i = 0; i < counters.length; i++) {
+      if (counters[i].id === id) return counters[i];
     }
     return null;
   }
 
   function isCompact() {
-    return state.rows.some(function (r) { return r.length === 2; });
+    return cur().rows.some(function (r) { return r.length === 2; });
   }
 
   function pushHistory(counter, action) {
-    state.history.unshift({
+    var p = cur();
+    p.history.unshift({
       count: counter.count,
       note: counter.note,
       action: action,
       ts: Date.now()
     });
-    state.history = state.history.slice(0, HISTORY_MAX);
+    p.history = p.history.slice(0, HISTORY_MAX);
   }
 
   function addCounter() {
     var id = "c_" + state.nextId++;
-    state.counters.push({ id: id, count: 0, note: "", rowMark: "start" });
-    state.rows.push([id]);
+    var p = cur();
+    p.counters.push({ id: id, count: 0, note: "", rowMark: "start" });
+    p.rows.push([id]);
     saveState();
     render();
   }
@@ -552,20 +743,66 @@
   function removeCounter(id) {
     var c = find(id);
     if (!c) return;
+    var p = cur();
     if (c.count > 0) pushHistory(c, "removed");  // a 0 counter isn't worth remembering
-    if (state.counters.length === 1) {
+    if (p.counters.length === 1) {
       // never drop to zero counters — removing the last one resets it instead
       c.count = 0;
       c.note = "";
       c.rowMark = "start";
     } else {
-      state.counters = state.counters.filter(function (x) { return x.id !== id; });
-      state.rows = state.rows.map(function (r) {
+      p.counters = p.counters.filter(function (x) { return x.id !== id; });
+      p.rows = p.rows.map(function (r) {
         return r.filter(function (x) { return x !== id; });
       }).filter(function (r) { return r.length > 0; });
     }
     saveState();
     render();
+  }
+
+  // ----- projects -----
+  function freshCounter() {
+    return { id: "c_" + state.nextId++, count: 0, note: "", rowMark: "start" };
+  }
+
+  function addProject() {
+    var pid = "p_" + state.nextProjectId;
+    var name = "Project " + state.nextProjectId;
+    state.nextProjectId++;
+    var c = freshCounter();
+    state.projects.push({ id: pid, name: name, counters: [c], rows: [[c.id]], history: [] });
+    state.currentProjectId = pid;
+    view = "project";
+    saveState();
+    render();
+  }
+
+  function removeProject(id) {
+    var idx = -1;
+    for (var i = 0; i < state.projects.length; i++) {
+      if (state.projects[i].id === id) { idx = i; break; }
+    }
+    if (idx < 0) return;
+    if (state.projects.length === 1) {
+      // never drop to zero projects — deleting the last one resets it instead
+      var p = state.projects[0];
+      var c = freshCounter();
+      p.name = "Project 1";
+      p.counters = [c];
+      p.rows = [[c.id]];
+      p.history = [];
+    } else {
+      state.projects.splice(idx, 1);
+      if (state.currentProjectId === id) state.currentProjectId = state.projects[0].id;
+    }
+    saveState();
+    render();
+  }
+
+  function renameProject(text) {
+    cur().name = text;         // stored as typed; trimmed on focusout
+    saveState();
+    // no render(): keep the input focused/cursor intact
   }
 
   function increment(id) {
@@ -666,9 +903,35 @@
     showConfirm("Remove " + name + "?", "Remove", doRemove);
   }
 
+  function confirmRemoveProject(id) {
+    var p = findProject(id);
+    if (!p) return;
+    var hasCounts = p.counters.some(function (c) { return c.count > 0; });
+    if (!hasCounts && p.history.length === 0) {
+      removeProject(id);       // nothing counted yet — no confirm needed
+      return;
+    }
+    var name = p.name.trim() ? "“" + p.name.trim() + "”" : "this project";
+    showConfirm("Delete " + name + "? Its counters will be lost.", "Delete", function () {
+      removeProject(id);
+    });
+  }
+
   // ----- rendering -----
   var listEl = document.getElementById("list");
   var historyEl = document.getElementById("history");
+  var screenProjectEl = document.getElementById("screen-project");
+  var screenProjectsEl = document.getElementById("screen-projects");
+  var projectNameEl = document.getElementById("project-name");
+  var plistEl = document.getElementById("plist");
+
+  // Which screen is showing — transient, not persisted; reload lands on the
+  // current project ready to count.
+  var view = "project";
+
+  // History starts hidden — it's rarely needed. Transient, not persisted.
+  var historyOpen = false;
+  var historyToggleEl = document.getElementById("history-toggle");
 
   function fmtTime(ts) {
     if (!ts) return "";
@@ -708,7 +971,7 @@
     remove.textContent = "×";
     card.appendChild(remove);
 
-    if (state.counters.length > 1) {
+    if (cur().counters.length > 1) {
       var drag = document.createElement("button");
       drag.className = "drag";
       drag.type = "button";
@@ -758,18 +1021,30 @@
   }
 
   function render() {
+    var showingProjects = view === "projects";
+    screenProjectEl.hidden = showingProjects;
+    screenProjectsEl.hidden = !showingProjects;
+    if (showingProjects) {
+      renderProjects();
+      return;
+    }
+
+    // don't clobber the name while the user is typing in it
+    if (document.activeElement !== projectNameEl) projectNameEl.value = cur().name;
+
     listEl.innerHTML = "";
     var compact = isCompact();
     listEl.classList.toggle("compact", compact);
 
-    if (state.counters.length === 0) {
+    var p = cur();
+    if (p.counters.length === 0) {
       var empty = document.createElement("div");
       empty.className = "empty";
       empty.textContent = "No counters yet.";
       listEl.appendChild(empty);
     }
 
-    state.rows.forEach(function (rowIds) {
+    p.rows.forEach(function (rowIds) {
       var rowEl = document.createElement("div");
       rowEl.className = "row";
       rowIds.forEach(function (id) {
@@ -782,9 +1057,42 @@
     renderHistory();
   }
 
+  function renderProjects() {
+    plistEl.innerHTML = "";
+    state.projects.forEach(function (p) {
+      var row = document.createElement("div");
+      row.className = "prow" + (p.id === state.currentProjectId ? " current" : "");
+      row.dataset.id = p.id;
+
+      var dot = document.createElement("span");
+      dot.className = "p-dot";
+
+      var name = document.createElement("span");
+      var trimmed = p.name.trim();
+      name.className = "p-name" + (trimmed ? "" : " untitled");
+      name.textContent = trimmed || "Untitled project";
+
+      var remove = document.createElement("button");
+      remove.className = "p-remove";
+      remove.type = "button";
+      remove.setAttribute("aria-label", "Delete project");
+      remove.textContent = "×";
+
+      row.appendChild(dot);
+      row.appendChild(name);
+      row.appendChild(remove);
+      plistEl.appendChild(row);
+    });
+  }
+
   function renderHistory() {
     historyEl.innerHTML = "";
-    if (state.history.length === 0) {
+    var history = cur().history;
+    historyToggleEl.hidden = history.length === 0;
+    historyToggleEl.classList.toggle("open", historyOpen);
+    historyToggleEl.setAttribute("aria-expanded", historyOpen ? "true" : "false");
+    historyToggleEl.setAttribute("aria-label", historyOpen ? "Hide history" : "Show history");
+    if (history.length === 0 || !historyOpen) {
       historyEl.hidden = true;
       return;
     }
@@ -794,7 +1102,7 @@
     title.textContent = "History";
     historyEl.appendChild(title);
 
-    state.history.forEach(function (h) {
+    history.forEach(function (h) {
       var row = document.createElement("div");
       row.className = "h-row";
 
@@ -998,11 +1306,12 @@
       }
     });
 
-    state.rows = newRows;
+    var p = cur();
+    p.rows = newRows;
     // keep the flat counter order in reading order
     var flat = [];
     newRows.forEach(function (r) { r.forEach(function (id) { flat.push(id); }); });
-    state.counters.sort(function (a, b) {
+    p.counters.sort(function (a, b) {
       return flat.indexOf(a.id) - flat.indexOf(b.id);
     });
     saveState();
@@ -1018,7 +1327,55 @@
 
   document.getElementById("add").addEventListener("click", addCounter);
 
+  historyToggleEl.addEventListener("click", function () {
+    historyOpen = !historyOpen;
+    render();
+    // the list lives at the bottom of the page — bring it into view if needed
+    if (historyOpen) historyEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
+
+  // ----- project screen navigation -----
+  document.getElementById("to-projects").addEventListener("click", function () {
+    view = "projects";
+    render();
+  });
+
+  document.getElementById("add-project").addEventListener("click", addProject);
+
+  plistEl.addEventListener("click", function (e) {
+    var row = e.target.closest(".prow");
+    if (!row) return;
+    if (e.target.closest(".p-remove")) {
+      confirmRemoveProject(row.dataset.id);
+      return;
+    }
+    state.currentProjectId = row.dataset.id;
+    view = "project";
+    historyOpen = false;   // land on a project with history tucked away
+    saveState();
+    render();
+  });
+
+  projectNameEl.addEventListener("input", function () {
+    renameProject(projectNameEl.value);
+  });
+
+  // Trim whitespace-only names when the field loses focus.
+  projectNameEl.addEventListener("focusout", function () {
+    var trimmed = projectNameEl.value.trim();
+    if (trimmed !== projectNameEl.value) {
+      projectNameEl.value = trimmed;
+      renameProject(trimmed);
+    }
+  });
+
   render();
+
+  // Offline cache when hosted over https (e.g. GitHub Pages). Deliberately
+  // not registered on file:// or the local http preview.
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js");
+  }
 })();
 </script>
 </body>
