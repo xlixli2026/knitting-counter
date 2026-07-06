@@ -66,10 +66,10 @@
     color: var(--muted);
   }
 
+  /* Own row above the project name, aligned to the left edge. */
   .back {
-    position: absolute;
-    left: 0;
-    top: 3px;
+    display: block;
+    margin: 0 0 10px -10px;   /* -10px cancels the padding so ‹ sits on the edge */
     border: none;
     background: transparent;
     color: var(--muted);
@@ -81,11 +81,11 @@
   }
   .back:hover, .back:focus-visible { color: var(--text); background: var(--btn); outline: none; }
 
-  /* Editable project name, styled like the h1. Equal side margins keep it
-     centered while clearing the ‹ Projects button on the left. */
+  /* Editable project name, styled like the h1. Equal side paddings keep it
+     centered. */
   .project-name {
     display: block;
-    width: calc(100% - 180px);
+    width: 100%;
     margin: 0 auto;
     padding: 2px 8px;
     border: none;
