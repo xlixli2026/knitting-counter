@@ -6,7 +6,7 @@
 <title>Knitting Counter</title>
 <!-- Hosting extras: icons / manifest / iOS home-screen. All optional — the
      app still works as a lone file:// page when these 404. -->
-<meta name="theme-color" content="#faf9f7">
+<meta name="theme-color" content="#202835">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -15,14 +15,24 @@
 <meta name="apple-mobile-web-app-title" content="Knitting">
 <style>
   :root {
-    --bg: #faf9f7;
-    --card: #ffffff;
-    --text: #2b2b2b;
-    --muted: #9a948c;
-    --line: #ece8e2;
+    --bg: #202835;
+    --card: #f4f4f4;
+    --text: #ffffff;
+    --muted: rgba(255, 255, 255, 0.78);
+    --line: rgba(255, 255, 255, 0.35);
     --accent: #3f8f86;        /* muted teal */
-    --accent-soft: #eaf3f1;
-    --btn: #f3f0ec;
+    --accent-soft: #b8ded3;
+    --btn: rgba(255, 255, 255, 0.18);
+  }
+
+  /* Cards are light on a dark page — re-scope the neutral tokens for
+     everything drawn on top of --card so text and controls stay legible. */
+  .card, .modal, .prow {
+    --text: #17222e;
+    --muted: rgba(23, 34, 46, 0.6);
+    --line: rgba(23, 34, 46, 0.16);
+    --btn: #e5e5e5;
+    color: var(--text);
   }
 
   * { box-sizing: border-box; }
@@ -43,7 +53,8 @@
   .wrap {
     max-width: 480px;
     margin: 0 auto;
-    padding: 32px 16px 64px;
+    /* extra bottom padding keeps the last card/row clear of the pinned button */
+    padding: 32px 16px calc(104px + env(safe-area-inset-bottom));
   }
 
   header {
@@ -58,12 +69,6 @@
     letter-spacing: 0.2px;
     margin: 0;
     color: var(--text);
-  }
-
-  header p {
-    margin: 4px 0 0;
-    font-size: 13px;
-    color: var(--muted);
   }
 
   /* Own row above the project name, aligned to the left edge. */
@@ -81,12 +86,40 @@
   }
   .back:hover, .back:focus-visible { color: var(--text); background: var(--btn); outline: none; }
 
-  /* Editable project name, styled like the h1. Equal side paddings keep it
-     centered. */
+  /* Project-type icon + editable name, centered as a pair. The input is
+     auto-sized to its text from JS so the icon hugs the name. */
+  .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  #project-icon {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    color: #ced0d3;        /* --muted flattened onto the navy bg */
+  }
+  /* Same footprint as the icon on the other side keeps the name centered. */
+  .title-edit {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 6px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .title-edit:hover, .title-edit:focus-visible { color: var(--text); background: var(--btn); outline: none; }
   .project-name {
     display: block;
-    width: 100%;
-    margin: 0 auto;
+    min-width: 40px;
+    max-width: calc(100% - 96px);   /* icon + pencil + gaps */
     padding: 2px 8px;
     border: none;
     background: transparent;
@@ -98,9 +131,12 @@
     text-align: center;
     border-radius: 8px;
     outline: none;
+    pointer-events: none;      /* rename via the pencil only */
   }
+  .project-name.editing { pointer-events: auto; }
   .project-name::placeholder { color: var(--muted); font-weight: 400; }
-  .project-name:hover, .project-name:focus { background: var(--btn); }
+  /* plain text at rest — the gray edit box only exists in pencil-edit mode */
+  .project-name.editing:focus { background: var(--btn); }
 
   /* Projects screen */
   .plist {
@@ -108,7 +144,30 @@
     flex-direction: column;
     gap: 14px;
   }
+  /* Each row slides over a hidden Delete button (swipe left to reveal). */
+  .prow-wrap {
+    position: relative;
+    overflow: hidden;          /* the sliding row stays inside its slot */
+    border-radius: 14px;
+  }
+  .p-delete {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 88px;
+    border: none;
+    border-radius: 14px;
+    background: #e5484d;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
   .prow {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -118,42 +177,58 @@
     padding: 20px 12px 20px 18px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     cursor: pointer;
+    touch-action: pan-y;       /* horizontal swipes belong to the row */
+    transition: transform .2s ease;
   }
+  .prow.swiped { transform: translateX(-96px); }
   @media (hover: hover) {
-    .prow:hover { border-color: #ddd6cd; }
+    .prow:hover { border-color: rgba(23, 34, 46, 0.45); }
   }
-  .p-dot {
+  .p-icon {
     flex: 0 0 auto;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: transparent;   /* only the current project shows the dot */
+    width: 26px;
+    height: 26px;
+    color: #6f767d;        /* card-scope --muted flattened onto --card */
   }
-  .prow.current .p-dot { background: var(--accent); }
+  .p-icon svg { width: 100%; height: 100%; display: block; }
+  /* Renamed via the pencil button only — taps on the name fall through to
+     the row (open the project) until editing is switched on. */
   .p-name {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex: 0 1 auto;
+    min-width: 34px;
+    max-width: calc(100% - 80px);   /* icon + gaps + pencil button */
+    margin-right: auto;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
     font-size: 15px;
     font-weight: 500;
-    overflow: hidden;
+    padding: 4px 6px;
+    border-radius: 6px;
+    outline: none;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    pointer-events: none;
   }
-  .p-name.untitled { color: var(--muted); font-weight: 400; }
-  .p-remove {
+  .p-name.editing { pointer-events: auto; }
+  .p-name::placeholder { color: var(--muted); font-weight: 400; }
+  /* plain text at rest — the gray edit box only exists in pencil-edit mode */
+  .p-name.editing:focus { background: var(--btn); }
+  .p-edit {
     flex: 0 0 auto;
     width: 30px;
     height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border: none;
     background: transparent;
     color: var(--muted);
-    font-size: 20px;
-    line-height: 1;
     border-radius: 8px;
     cursor: pointer;
     touch-action: manipulation;
   }
-  .p-remove:hover, .p-remove:focus-visible { color: var(--text); background: var(--btn); outline: none; }
+  .p-edit:hover, .p-edit:focus-visible { color: var(--text); background: var(--btn); outline: none; }
 
   .list {
     display: flex;
@@ -174,7 +249,7 @@
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 14px;
-    padding: 50px 38px 18px;
+    padding: 58px 38px 14px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     transition: opacity .18s ease, transform .18s ease;
   }
@@ -184,7 +259,7 @@
   .list.compact .card,
   .row.pair-preview .card {
     flex: 0 0 calc(50% - 9px);
-    padding: 46px 20px 14px;
+    padding: 53px 20px 10px;
   }
   .list.compact .label,
   .row.pair-preview .label { left: 54px; right: 54px; font-size: 13px; }
@@ -264,7 +339,7 @@
     outline: none;
   }
   .label::placeholder { color: var(--muted); font-weight: 400; }
-  .label:hover { background: var(--bg); }
+  .label:hover { background: var(--btn); }
   .label:focus { background: var(--btn); }
 
   /* drag-to-reorder */
@@ -316,13 +391,13 @@
   }
 
   .step {
-    width: 60px;
-    height: 60px;
+    width: 76px;
+    height: 76px;
     flex: 0 0 auto;
     border: 1px solid var(--line);
     background: var(--btn);
     color: var(--text);
-    font-size: 30px;
+    font-size: 34px;
     font-weight: 400;
     line-height: 1;
     border-radius: 50%;
@@ -342,8 +417,8 @@
     color: var(--accent);
   }
   @media (hover: hover) {
-    .step:hover { background: #eae5de; border-color: #ddd6cd; }
-    .step.plus:hover { background: #d9eae6; border-color: #c6dfda; }
+    .step:hover { background: #dcdcdc; border-color: #d0d0d0; }
+    .step.plus:hover { background: #a5d4c7; border-color: #96cabc; }
   }
   .step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -379,10 +454,16 @@
   }
   .reset:hover, .reset:focus-visible { color: var(--text); background: var(--btn); outline: none; }
 
+  /* Pinned to the bottom of the screen; the list scrolls behind it. */
   .add {
     display: block;
-    width: 100%;
-    margin-top: 22px;
+    position: fixed;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: 448px;          /* wrap max-width minus its side padding */
+    z-index: 4;                /* under a dragged card (5) and the modal (10) */
     padding: 15px;
     border: 1px solid var(--accent);
     background: var(--accent);
@@ -392,8 +473,9 @@
     border-radius: 12px;
     cursor: pointer;
     touch-action: manipulation;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
   }
-  .add:active { transform: scale(0.99); }
+  .add:active { transform: translateX(-50%) scale(0.99); }
   .add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .empty {
@@ -402,15 +484,37 @@
     font-size: 14px;
     padding: 40px 0 8px;
   }
+  /* Projects empty state floats in the middle of the screen. */
+  #plist .empty {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 0;
+    width: max-content;
+    max-width: calc(100% - 32px);
+  }
+  /* Icon strokes need OPAQUE colors: with translucent ones every stroke
+     overlap doubles up and blotches. These match the muted tones flattened
+     onto their backgrounds. */
+  .empty-icon {
+    display: block;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 14px;
+    color: #ced0d3;        /* --muted flattened onto the navy bg */
+  }
+  .empty-icon svg { width: 100%; height: 100%; display: block; }
 
   /* History of the last 5 reset / removed counts — tucked behind a clock
-     icon at the top right, since it's rarely needed. Sits in the header's
-     bottom margin so the list doesn't shift when the icon is hidden. */
+     icon on the All Projects row, top right, since it's rarely needed. */
   .history-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: -16px 0 10px auto;
+    position: absolute;
+    top: -4px;                 /* centers the 34px button on the back-button row */
+    right: -8px;               /* mirror of .back's -10px edge alignment */
     width: 34px;
     height: 34px;
     border: none;
@@ -523,12 +627,18 @@
 <body>
   <div class="wrap" id="screen-project">
     <header>
-      <button class="back" id="to-projects" type="button">‹ Projects</button>
-      <input class="project-name" id="project-name" type="text" placeholder="Untitled project" aria-label="Project name">
+      <button class="back" id="to-projects" type="button">All Projects</button>
+      <button class="history-toggle" id="history-toggle" type="button" aria-label="Show history" aria-expanded="false" title="History" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+      </button>
+      <div class="title-row">
+        <span class="p-icon" id="project-icon" aria-hidden="true"></span>
+        <input class="project-name" id="project-name" type="text" placeholder="Untitled project" aria-label="Project name" readonly>
+        <button class="title-edit" id="project-rename" type="button" aria-label="Rename project">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.3 4.7 L19.3 7.7 7.5 19.5 4 20 4.5 16.5 Z"/></svg>
+        </button>
+      </div>
     </header>
-    <button class="history-toggle" id="history-toggle" type="button" aria-label="Show history" aria-expanded="false" title="History" hidden>
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
-    </button>
     <div class="list" id="list"></div>
     <button class="add" id="add" type="button">+ Add counter</button>
     <section class="history" id="history" hidden></section>
@@ -537,7 +647,6 @@
   <div class="wrap" id="screen-projects" hidden>
     <header>
       <h1>Projects</h1>
-      <p>Saved on this device.</p>
     </header>
     <div class="plist" id="plist"></div>
     <button class="add" id="add-project" type="button">+ Add project</button>
@@ -569,6 +678,7 @@
       projects: [{
         id: "p_1",
         name: "Project 1",
+        lastUsed: 0,
         counters: [{ id: "c_1", count: 0, note: "", rowMark: "start" }],
         rows: [["c_1"]],
         history: []
@@ -584,6 +694,7 @@
     var out = {
       id: String(p.id != null ? p.id : "p_" + Math.random().toString(36).slice(2)),
       name: typeof p.name === "string" ? p.name : "",
+      lastUsed: Number(p.lastUsed) || 0,
       history: []
     };
     out.counters = p.counters.map(function (c) {
@@ -673,12 +784,15 @@
         seenPid[proj.id] = true;
         out.projects.push(proj);
       });
-      if (!out.projects.length) return seed();
+      // zero projects is a valid state (user deleted the last one) — but if
+      // the data claimed projects and none survived normalization, reseed
+      if (!out.projects.length && rawProjects.length) return seed();
 
       var totalCounters = 0;
       out.projects.forEach(function (p) { totalCounters += p.counters.length; });
       out.nextId = typeof data.nextId === "number" ? data.nextId : totalCounters + 1;
-      out.currentProjectId = seenPid[String(data.currentProjectId)] ? String(data.currentProjectId) : out.projects[0].id;
+      out.currentProjectId = seenPid[String(data.currentProjectId)] ? String(data.currentProjectId)
+        : out.projects.length ? out.projects[0].id : null;
       return out;
     } catch (e) {
       return seed();
@@ -720,6 +834,11 @@
     return cur().rows.some(function (r) { return r.length === 2; });
   }
 
+  // Mark a project as just-edited; the projects list is ordered by this.
+  function touch(p) {
+    if (p) p.lastUsed = Date.now();
+  }
+
   function pushHistory(counter, action) {
     var p = cur();
     p.history.unshift({
@@ -736,6 +855,7 @@
     var p = cur();
     p.counters.push({ id: id, count: 0, note: "", rowMark: "start" });
     p.rows.push([id]);
+    touch(p);
     saveState();
     render();
   }
@@ -756,6 +876,7 @@
         return r.filter(function (x) { return x !== id; });
       }).filter(function (r) { return r.length > 0; });
     }
+    touch(p);
     saveState();
     render();
   }
@@ -765,16 +886,32 @@
     return { id: "c_" + state.nextId++, count: 0, note: "", rowMark: "start" };
   }
 
+  // Default names number from the current list, not the historical creation
+  // count: the smallest "Project N" not already taken. With no projects left
+  // the next one is "Project 1" again. (Ids still increment forever.)
+  function nextProjectName() {
+    var used = {};
+    state.projects.forEach(function (p) {
+      var m = /^project (\d+)$/i.exec(p.name.trim());
+      if (m) used[Number(m[1])] = true;
+    });
+    var n = 1;
+    while (used[n]) n++;
+    return "Project " + n;
+  }
+
   function addProject() {
-    var pid = "p_" + state.nextProjectId;
-    var name = "Project " + state.nextProjectId;
-    state.nextProjectId++;
+    var pid = "p_" + state.nextProjectId++;
     var c = freshCounter();
-    state.projects.push({ id: pid, name: name, counters: [c], rows: [[c.id]], history: [] });
-    state.currentProjectId = pid;
-    view = "project";
+    state.projects.push({ id: pid, name: nextProjectName(), lastUsed: Date.now(),
+                          counters: [c], rows: [[c.id]], history: [] });
+    // stay on the projects list — tap the new row to open it
     saveState();
     render();
+    // highlight the fresh row's name (selected, ready to overtype) as a
+    // nudge to give the project a real name
+    var input = plistEl.querySelector('.prow[data-id="' + pid + '"] .p-name');
+    if (input) beginNameEdit(input);
   }
 
   function removeProject(id) {
@@ -783,24 +920,23 @@
       if (state.projects[i].id === id) { idx = i; break; }
     }
     if (idx < 0) return;
-    if (state.projects.length === 1) {
-      // never drop to zero projects — deleting the last one resets it instead
-      var p = state.projects[0];
-      var c = freshCounter();
-      p.name = "Project 1";
-      p.counters = [c];
-      p.rows = [[c.id]];
-      p.history = [];
-    } else {
-      state.projects.splice(idx, 1);
-      if (state.currentProjectId === id) state.currentProjectId = state.projects[0].id;
+    state.projects.splice(idx, 1);
+    if (state.currentProjectId === id) {
+      // fall back to the most recently used remaining project
+      var best = null;
+      state.projects.forEach(function (q) {
+        if (!best || (q.lastUsed || 0) > (best.lastUsed || 0)) best = q;
+      });
+      state.currentProjectId = best ? best.id : null;
     }
     saveState();
     render();
   }
 
-  function renameProject(text) {
-    cur().name = text;         // stored as typed; trimmed on focusout
+  function renameProject(p, text) {
+    if (!p) return;
+    p.name = text;             // stored as typed; trimmed on focusout
+    touch(p);
     saveState();
     // no render(): keep the input focused/cursor intact
   }
@@ -809,6 +945,7 @@
     var c = find(id);
     if (!c) return;
     c.count = Math.min(Number.MAX_SAFE_INTEGER, c.count + 1);
+    touch(cur());
     saveState();
     render();
   }
@@ -817,6 +954,7 @@
     var c = find(id);
     if (!c) return;
     c.count = Math.max(0, c.count - 1);
+    touch(cur());
     saveState();
     render();
   }
@@ -826,6 +964,7 @@
     if (!c || c.count === 0) return;
     pushHistory(c, "reset");
     c.count = 0;
+    touch(cur());
     saveState();
     render();
   }
@@ -834,6 +973,7 @@
     var c = find(id);
     if (!c) return;
     c.rowMark = c.rowMark === "start" ? "end" : "start";
+    touch(cur());
     saveState();
     render();
   }
@@ -842,6 +982,7 @@
     var c = find(id);
     if (!c) return;
     c.note = text;            // stored as typed; trimmed on focusout
+    touch(cur());
     saveState();
     // no render(): keep the input focused/cursor intact
   }
@@ -923,7 +1064,47 @@
   var screenProjectEl = document.getElementById("screen-project");
   var screenProjectsEl = document.getElementById("screen-projects");
   var projectNameEl = document.getElementById("project-name");
+  var projectIconEl = document.getElementById("project-icon");
   var plistEl = document.getElementById("plist");
+
+  // Auto-size the name input to its text so the type icon sits right next
+  // to it; the pair is centered by the .title-row flexbox.
+  var measureCtx = document.createElement("canvas").getContext("2d");
+
+  // Name fields are readonly + tap-transparent until their pencil button
+  // switches editing on; editing ends on blur or any tap outside the field.
+  function beginNameEdit(input) {
+    input.readOnly = false;
+    input.classList.add("editing");
+    input.focus();
+    input.select();
+  }
+
+  function endNameEdit(input) {
+    input.classList.remove("editing");
+    input.readOnly = true;
+  }
+
+  document.addEventListener("pointerdown", function (e) {
+    var editing = document.querySelector(".p-name.editing, .project-name.editing");
+    if (editing && e.target !== editing) {
+      endNameEdit(editing);
+      editing.blur();
+    }
+  });
+
+  // Size an editable name input to its text so only the name captures taps.
+  function sizeNameInput(input, extra) {
+    var cs = getComputedStyle(input);
+    measureCtx.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+    var w = measureCtx.measureText(input.value || input.placeholder).width;
+    input.style.width = Math.ceil(w + extra) + "px";
+  }
+
+  function refreshProjectTitle() {
+    projectIconEl.innerHTML = iconSvg(projectIconKey(projectNameEl.value));
+    sizeNameInput(projectNameEl, 20);   // + padding & caret
+  }
 
   // Which screen is showing — transient, not persisted; reload lands on the
   // current project ready to count.
@@ -1021,6 +1202,7 @@
   }
 
   function render() {
+    if (!state.projects.length) view = "projects";   // no project to show
     var showingProjects = view === "projects";
     screenProjectEl.hidden = showingProjects;
     screenProjectsEl.hidden = !showingProjects;
@@ -1031,6 +1213,7 @@
 
     // don't clobber the name while the user is typing in it
     if (document.activeElement !== projectNameEl) projectNameEl.value = cur().name;
+    refreshProjectTitle();
 
     listEl.innerHTML = "";
     var compact = isCompact();
@@ -1057,31 +1240,111 @@
     renderHistory();
   }
 
+  // ----- project icons -----
+  // Simple line icons, drawn inline (24x24, stroke = currentColor) so the
+  // app stays a single offline file. Picked by keywords in the project name.
+  var PROJECT_ICONS = {
+    sweater: '<path d="M7.5 4 L5 5.2 C3.4 6 2.6 7.8 3 9.6 L4.6 16.2 H7 V20 H17 V16.2 H19.4 L21 9.6 C21.4 7.8 20.6 6 19 5.2 L16.5 4 C15.2 5.3 13.7 6 12 6 C10.3 6 8.8 5.3 7.5 4 Z"/><path d="M7 16.2 V10.5"/><path d="M17 16.2 V10.5"/>',
+    tshirt: '<path d="M7.5 4 L4.5 5.6 2.8 8.8 5.8 10.6 V19.5 H18.2 V10.6 L21.2 8.8 19.5 5.6 16.5 4 C15.3 5.2 13.7 5.8 12 5.8 C10.3 5.8 8.7 5.2 7.5 4 Z"/>',
+    scarf: '<path d="M9.2 3.5 H14.8 V17.5 H9.2 Z"/><path d="M9.2 6.5 H14.8"/><path d="M10 17.5 V20.5"/><path d="M12 17.5 V20.5"/><path d="M14 17.5 V20.5"/>',
+    sock: '<path d="M8.5 3.5 H15.5 V11.5 C15.5 15.5 13.2 18 10 18 C7.3 18 5.6 16.2 5.6 13.9 C5.6 12.1 6.8 10.9 8.5 10.3 Z"/><path d="M8.5 6.5 H15.5"/>',
+    pants: '<path d="M6.5 3.5 H17.5 L18.8 20.5 H13.9 L12 11.5 10.1 20.5 H5.2 Z"/><path d="M6.5 6.5 H17.5"/>',
+    skirt: '<path d="M8 4 H16 L19.2 18.6 C17 19.9 14.6 20.5 12 20.5 C9.4 20.5 7 19.9 4.8 18.6 Z"/><path d="M7.4 7 H16.6"/>',
+    hat: '<circle cx="12" cy="3.8" r="1.3"/><path d="M5.5 16 C5.5 9.8 8.4 6.2 12 6.2 C15.6 6.2 18.5 9.8 18.5 16"/><path d="M4.5 16 H19.5 V19 H4.5 Z"/>',
+    mitten: '<path d="M7 20.5 V10 C7 6.5 9.2 4 12 4 C14.8 4 17 6.5 17 10 V11.2 C18.8 10.6 20.4 12 20 13.8 C19.7 15.2 18.4 16 17 15.7 V20.5 Z"/><path d="M7 17 H17"/>',
+    blanket: '<rect x="4" y="5.5" width="16" height="13" rx="2"/><path d="M4 9.5 H20"/><path d="M4 13.5 H20"/>',
+    dress: '<path d="M9 3.5 H15 L14.2 8.2 C16.9 10.8 18.4 14.6 18.4 18.6 C16.4 19.8 14.2 20.5 12 20.5 C9.8 20.5 7.6 19.8 5.6 18.6 C5.6 14.6 7.1 10.8 9.8 8.2 Z"/><path d="M9.8 8.2 H14.2"/>',
+    yarn: '<circle cx="10" cy="14" r="6.5"/><path d="M4.3 12 Q10 10.2 15.7 12"/><path d="M3.6 15.2 Q10 13.4 16.4 15.2"/><path d="M5 18.4 Q10 16.8 15 18.4"/><path d="M20.8 3.2 L13 19.5"/><path d="M22 8 L15.8 19.8"/>'
+  };
+
+  // First match wins — more specific garments come before generic words, so
+  // e.g. "top-down sweater" hits sweater, not tshirt's "top".
+  var ICON_KEYWORDS = [
+    ["blanket", ["blanket", "blankets", "throw", "afghan"]],
+    ["dress", ["dress", "dresses", "gown"]],
+    ["skirt", ["skirt", "skirts", "tutu"]],
+    ["pants", ["pants", "trousers", "leggings", "shorts", "joggers"]],
+    ["sock", ["sock", "socks", "stocking", "stockings", "slipper", "slippers", "bootie", "booties"]],
+    ["mitten", ["mitten", "mittens", "glove", "gloves"]],
+    ["hat", ["hat", "hats", "beanie", "beanies", "cap", "balaclava", "headband"]],
+    ["sweater", ["sweater", "sweaters", "jumper", "pullover", "cardigan", "cardi", "hoodie", "vest"]],
+    ["scarf", ["scarf", "scarves", "cowl", "shawl", "wrap"]],
+    ["tshirt", ["tshirt", "t-shirt", "tee", "shirt", "top", "tank", "camisole"]]
+  ];
+
+  function projectIconKey(name) {
+    var words = String(name).toLowerCase();
+    for (var i = 0; i < ICON_KEYWORDS.length; i++) {
+      var kws = ICON_KEYWORDS[i][1];
+      for (var j = 0; j < kws.length; j++) {
+        if (new RegExp("\\b" + kws[j] + "\\b").test(words)) return ICON_KEYWORDS[i][0];
+      }
+    }
+    return "yarn";   // default: ball of yarn + needles
+  }
+
+  function iconSvg(key) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + PROJECT_ICONS[key] + "</svg>";
+  }
+
   function renderProjects() {
     plistEl.innerHTML = "";
-    state.projects.forEach(function (p) {
+    if (state.projects.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      var eIcon = document.createElement("span");
+      eIcon.className = "empty-icon";
+      eIcon.innerHTML = iconSvg("yarn");
+      empty.appendChild(eIcon);
+      empty.appendChild(document.createTextNode("Add a project to start."));
+      plistEl.appendChild(empty);
+      return;
+    }
+    // newest last-edit first
+    var ordered = state.projects.slice().sort(function (a, b) {
+      return (b.lastUsed || 0) - (a.lastUsed || 0);
+    });
+    ordered.forEach(function (p) {
+      var wrap = document.createElement("div");
+      wrap.className = "prow-wrap";
+      wrap.dataset.id = p.id;
+
+      var del = document.createElement("button");
+      del.className = "p-delete";
+      del.type = "button";
+      del.textContent = "Delete";
+      del.setAttribute("aria-label", "Delete project");
+      wrap.appendChild(del);
+
       var row = document.createElement("div");
-      row.className = "prow" + (p.id === state.currentProjectId ? " current" : "");
+      row.className = "prow";
       row.dataset.id = p.id;
 
-      var dot = document.createElement("span");
-      dot.className = "p-dot";
+      var icon = document.createElement("span");
+      icon.className = "p-icon";
+      icon.innerHTML = iconSvg(projectIconKey(p.name));
+      row.appendChild(icon);
 
-      var name = document.createElement("span");
-      var trimmed = p.name.trim();
-      name.className = "p-name" + (trimmed ? "" : " untitled");
-      name.textContent = trimmed || "Untitled project";
+      var name = document.createElement("input");
+      name.className = "p-name";
+      name.type = "text";
+      name.value = p.name;
+      name.readOnly = true;              // editable only via the pencil
+      name.placeholder = "Untitled project";
+      name.setAttribute("aria-label", "Project name");
 
-      var remove = document.createElement("button");
-      remove.className = "p-remove";
-      remove.type = "button";
-      remove.setAttribute("aria-label", "Delete project");
-      remove.textContent = "×";
+      var edit = document.createElement("button");
+      edit.className = "p-edit";
+      edit.type = "button";
+      edit.setAttribute("aria-label", "Rename project");
+      edit.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.3 4.7 L19.3 7.7 7.5 19.5 4 20 4.5 16.5 Z"/></svg>';
 
-      row.appendChild(dot);
       row.appendChild(name);
-      row.appendChild(remove);
-      plistEl.appendChild(row);
+      row.appendChild(edit);
+      wrap.appendChild(row);
+      plistEl.appendChild(wrap);
+      sizeNameInput(name, 16);   // only the name itself is tap-to-edit
     });
   }
 
@@ -1314,6 +1577,7 @@
     p.counters.sort(function (a, b) {
       return flat.indexOf(a.id) - flat.indexOf(b.id);
     });
+    touch(p);
     saveState();
     render();   // rebuilds everything — placeholder and inline styles included
   }
@@ -1343,29 +1607,119 @@
   document.getElementById("add-project").addEventListener("click", addProject);
 
   plistEl.addEventListener("click", function (e) {
-    var row = e.target.closest(".prow");
-    if (!row) return;
-    if (e.target.closest(".p-remove")) {
-      confirmRemoveProject(row.dataset.id);
+    if (suppressClick) { suppressClick = false; return; }   // tail of a swipe
+    if (e.target.closest(".p-delete")) {
+      confirmRemoveProject(e.target.closest(".prow-wrap").dataset.id);
       return;
     }
+    var row = e.target.closest(".prow");
+    if (!row) return;
+    if (row.classList.contains("swiped")) {
+      row.classList.remove("swiped");          // tap a swiped row → just close it
+      return;
+    }
+    if (e.target.closest(".p-edit")) {
+      beginNameEdit(row.querySelector(".p-name"));
+      return;
+    }
+    if (e.target.closest(".p-name")) return;   // editing the name, not opening
     state.currentProjectId = row.dataset.id;
+    touch(findProject(row.dataset.id));        // selected → top of the list
     view = "project";
     historyOpen = false;   // land on a project with history tucked away
     saveState();
     render();
   });
 
+  // ----- swipe a project row left to reveal Delete -----
+  var rowSwipe = null;
+  var suppressClick = false;
+
+  plistEl.addEventListener("pointerdown", function (e) {
+    var row = e.target.closest(".prow");
+    var wrap = e.target.closest(".prow-wrap");
+    var open = plistEl.querySelector(".prow.swiped");
+    // one open at a time — but pressing the open row's own Delete button
+    // must NOT close it, or the row slides back over the button mid-tap
+    if (open && open !== row && open.closest(".prow-wrap") !== wrap) {
+      open.classList.remove("swiped");
+    }
+    if (!row) return;
+    // don't hijack a drag-to-select inside a focused name field
+    if (e.target.classList && e.target.classList.contains("p-name") && document.activeElement === e.target) return;
+    rowSwipe = {
+      row: row, id: e.pointerId,
+      x: e.clientX, y: e.clientY,
+      base: row.classList.contains("swiped") ? -96 : 0,
+      engaged: false, off: null
+    };
+  });
+
+  plistEl.addEventListener("pointermove", function (e) {
+    if (!rowSwipe || e.pointerId !== rowSwipe.id) return;
+    var dx = e.clientX - rowSwipe.x;
+    var dy = e.clientY - rowSwipe.y;
+    if (!rowSwipe.engaged) {
+      // engage only on a clearly horizontal move
+      if (Math.abs(dx) < 12 || Math.abs(dx) < Math.abs(dy)) return;
+      rowSwipe.engaged = true;
+      rowSwipe.row.style.transition = "none";
+      try { rowSwipe.row.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
+    }
+    rowSwipe.off = Math.max(-96, Math.min(0, rowSwipe.base + dx));
+    rowSwipe.row.style.transform = "translateX(" + rowSwipe.off + "px)";
+  });
+
+  function endRowSwipe(e) {
+    if (!rowSwipe || e.pointerId !== rowSwipe.id) return;
+    var s = rowSwipe;
+    rowSwipe = null;
+    if (!s.engaged) return;
+    suppressClick = true;   // the pointerup's click is the swipe's tail, not a tap
+    setTimeout(function () { suppressClick = false; }, 50);
+    s.row.style.transition = "";
+    s.row.style.transform = "";
+    s.row.classList.toggle("swiped", (s.off === null ? s.base : s.off) < -48);
+  }
+  plistEl.addEventListener("pointerup", endRowSwipe);
+  plistEl.addEventListener("pointercancel", endRowSwipe);
+
+  // Rename in place from the projects list; the row's icon follows live.
+  // No render() — the row would be rebuilt (and re-sorted) under the cursor.
+  plistEl.addEventListener("input", function (e) {
+    if (!e.target.classList.contains("p-name")) return;
+    var row = e.target.closest(".prow");
+    renameProject(findProject(row.dataset.id), e.target.value);
+    row.querySelector(".p-icon").innerHTML = iconSvg(projectIconKey(e.target.value));
+    sizeNameInput(e.target, 16);   // width follows the text live
+  });
+
+  plistEl.addEventListener("focusout", function (e) {
+    if (!e.target.classList.contains("p-name")) return;
+    endNameEdit(e.target);   // back to tap-opens-project
+    var trimmed = e.target.value.trim();
+    if (trimmed !== e.target.value) {
+      e.target.value = trimmed;
+      renameProject(findProject(e.target.closest(".prow").dataset.id), trimmed);
+    }
+  });
+
   projectNameEl.addEventListener("input", function () {
-    renameProject(projectNameEl.value);
+    renameProject(cur(), projectNameEl.value);
+    refreshProjectTitle();   // icon + input width follow the text live
+  });
+
+  document.getElementById("project-rename").addEventListener("click", function () {
+    beginNameEdit(projectNameEl);
   });
 
   // Trim whitespace-only names when the field loses focus.
   projectNameEl.addEventListener("focusout", function () {
+    endNameEdit(projectNameEl);   // back to pencil-only
     var trimmed = projectNameEl.value.trim();
     if (trimmed !== projectNameEl.value) {
       projectNameEl.value = trimmed;
-      renameProject(trimmed);
+      renameProject(cur(), trimmed);
     }
   });
 
