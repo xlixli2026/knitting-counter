@@ -669,20 +669,16 @@
   var STORAGE_KEY = "stitchCounter.v1";
   var HISTORY_MAX = 5;
 
+  // First run (and the corrupt-data fallback) start with no projects, so the
+  // app opens on the "Add a project to start." screen. Zero projects is a
+  // fully valid persisted state; "+ Add project" creates "Project 1".
   function seed() {
     return {
       version: 2,
-      nextId: 2,
-      nextProjectId: 2,
-      currentProjectId: "p_1",
-      projects: [{
-        id: "p_1",
-        name: "Project 1",
-        lastUsed: 0,
-        counters: [{ id: "c_1", count: 0, note: "", rowMark: "start" }],
-        rows: [["c_1"]],
-        history: []
-      }]
+      nextId: 1,
+      nextProjectId: 1,
+      currentProjectId: null,
+      projects: []
     };
   }
 
