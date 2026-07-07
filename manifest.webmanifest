@@ -1,6 +1,6 @@
 {
-  "name": "Knitting Counter",
-  "short_name": "Knitting",
+  "name": "KnitCount",
+  "short_name": "KnitCount",
   "description": "A row counter for knitters",
   "start_url": ".",
   "display": "standalone",
