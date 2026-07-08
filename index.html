@@ -499,8 +499,8 @@
      onto their backgrounds. */
   .empty-icon {
     display: block;
-    width: 56px;
-    height: 56px;
+    width: 58px;
+    height: 58px;
     margin: 0 auto 14px;
     color: #ced0d3;        /* --muted flattened onto the navy bg */
   }
@@ -1284,6 +1284,19 @@
       + PROJECT_ICONS[key] + "</svg>";
   }
 
+  // Simplified line version of the app icon — a yarn ball with two
+  // knob-tipped needles. Kept minimal (uniform stroke, few shapes) so it
+  // stays legible at small sizes. Inline so it works offline.
+  var EMPTY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<circle cx="9" cy="15" r="5.7"/>'
+    + '<path d="M4 13.2 Q9 16.3 14 13.2"/>'
+    + '<path d="M4.7 17.6 Q9 19.5 13.3 17.6"/>'
+    + '<path d="M12.4 11.1 L17.2 6.3"/>'
+    + '<path d="M14 12.7 L18.8 7.9"/>'
+    + '<circle cx="17.2" cy="6.3" r="1.15" fill="currentColor" stroke="none"/>'
+    + '<circle cx="18.8" cy="7.9" r="1.15" fill="currentColor" stroke="none"/>'
+    + "</svg>";
+
   function renderProjects() {
     plistEl.innerHTML = "";
     if (state.projects.length === 0) {
@@ -1291,7 +1304,7 @@
       empty.className = "empty";
       var eIcon = document.createElement("span");
       eIcon.className = "empty-icon";
-      eIcon.innerHTML = iconSvg("yarn");
+      eIcon.innerHTML = EMPTY_ICON;
       empty.appendChild(eIcon);
       empty.appendChild(document.createTextNode("Add a project to start."));
       plistEl.appendChild(empty);
