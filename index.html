@@ -57,6 +57,20 @@
     padding: 32px 16px calc(104px + env(safe-area-inset-bottom));
   }
 
+  /* Flex column so History's margin-top:auto can push it to the bottom of
+     the screen when the counters don't fill it; when they do, that auto
+     margin collapses to 0 and History's own padding-top is the only gap. */
+  #screen-project {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  /* #screen-project's own display:flex (an ID selector) outranks the UA
+     stylesheet's [hidden]{display:none}, so it must be restated here or the
+     empty counter screen shows through behind the empty-projects state. */
+  #screen-project[hidden] { display: none; }
+
   header {
     position: relative;
     text-align: center;
@@ -116,11 +130,12 @@
     touch-action: manipulation;
   }
   .title-edit:hover, .title-edit:focus-visible { color: var(--text); background: var(--btn); outline: none; }
+  .title-edit svg { width: 18px; height: 18px; flex: none; display: block; }
   .project-name {
     display: block;
     min-width: 40px;
     max-width: calc(100% - 96px);   /* icon + pencil + gaps */
-    padding: 2px 8px;
+    padding: 2px 8px 2px 4px;   /* less on the icon side only; pencil side unchanged */
     border: none;
     background: transparent;
     color: var(--text);
@@ -135,8 +150,7 @@
   }
   .project-name.editing { pointer-events: auto; }
   .project-name::placeholder { color: var(--muted); font-weight: 400; }
-  /* plain text at rest — the gray edit box only exists in pencil-edit mode */
-  .project-name.editing:focus { background: var(--btn); }
+  /* the selected text is the only edit-mode indicator — no background box */
 
   /* Projects screen */
   .plist {
@@ -212,8 +226,7 @@
   }
   .p-name.editing { pointer-events: auto; }
   .p-name::placeholder { color: var(--muted); font-weight: 400; }
-  /* plain text at rest — the gray edit box only exists in pencil-edit mode */
-  .p-name.editing:focus { background: var(--btn); }
+  /* the selected text is the only edit-mode indicator — no background box */
   .p-edit {
     flex: 0 0 auto;
     width: 30px;
@@ -470,7 +483,7 @@
     color: #fff;
     font-size: 15px;
     font-weight: 500;
-    border-radius: 12px;
+    border-radius: 999px;
     cursor: pointer;
     touch-action: manipulation;
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
@@ -494,17 +507,13 @@
     width: max-content;
     max-width: calc(100% - 32px);
   }
-  /* Icon strokes need OPAQUE colors: with translucent ones every stroke
-     overlap doubles up and blotches. These match the muted tones flattened
-     onto their backgrounds. */
   .empty-icon {
     display: block;
     width: 58px;
     height: 58px;
     margin: 0 auto 14px;
-    color: #ced0d3;        /* --muted flattened onto the navy bg */
   }
-  .empty-icon svg { width: 100%; height: 100%; display: block; }
+  .empty-icon img { width: 100%; height: 100%; display: block; }
 
   /* History of the last 5 reset / removed counts — tucked behind a clock
      icon on the All Projects row, top right, since it's rarely needed. */
@@ -529,7 +538,8 @@
   .history-toggle.open { color: var(--text); background: var(--btn); }
 
   .history {
-    margin-top: 20px;
+    margin-top: auto;    /* pushes History to the bottom when counters don't fill the screen */
+    padding-top: 40px;   /* guaranteed gap above History when counters already fill the screen */
   }
   .history h2 {
     margin: 0 0 6px;
@@ -550,8 +560,6 @@
   .h-row:last-child { border-bottom: none; }
   .h-count {
     flex: 0 0 auto;
-    min-width: 42px;
-    text-align: right;
     font-size: 20px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -635,7 +643,7 @@
         <span class="p-icon" id="project-icon" aria-hidden="true"></span>
         <input class="project-name" id="project-name" type="text" placeholder="Untitled project" aria-label="Project name" readonly>
         <button class="title-edit" id="project-rename" type="button" aria-label="Rename project">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.3 4.7 L19.3 7.7 7.5 19.5 4 20 4.5 16.5 Z"/></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.3 4.7 L19.3 7.7 7.5 19.5 4 20 4.5 16.5 Z"/></svg>
         </button>
       </div>
     </header>
@@ -1287,15 +1295,10 @@
   // Simplified line version of the app icon — a yarn ball with two
   // knob-tipped needles. Kept minimal (uniform stroke, few shapes) so it
   // stays legible at small sizes. Inline so it works offline.
-  var EMPTY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-    + '<circle cx="9" cy="15" r="5.7"/>'
-    + '<path d="M4 13.2 Q9 16.3 14 13.2"/>'
-    + '<path d="M4.7 17.6 Q9 19.5 13.3 17.6"/>'
-    + '<path d="M12.4 11.1 L17.2 6.3"/>'
-    + '<path d="M14 12.7 L18.8 7.9"/>'
-    + '<circle cx="17.2" cy="6.3" r="1.15" fill="currentColor" stroke="none"/>'
-    + '<circle cx="18.8" cy="7.9" r="1.15" fill="currentColor" stroke="none"/>'
-    + "</svg>";
+  // Traced 1:1 from the owner's reference glyph (icon-source.png) via
+  // .claude/build_icons.py -- rerun that script and paste its output here
+  // if the source image or palette changes.
+  var EMPTY_ICON = '<img src="data:image/png;base64,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" alt="" width="128" height="128">';
 
   function renderProjects() {
     plistEl.innerHTML = "";
