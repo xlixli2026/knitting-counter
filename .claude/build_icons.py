@@ -1,15 +1,17 @@
 """Regenerate icon-512.png, icon-180.png, and the EMPTY_ICON data URI from
-icon-source.png (the owner's reference glyph: transparent bg, light-gray
-fill). Pure stdlib -- no PIL/numpy. Run from anywhere; paths are relative to
-the repo root (one level up from this file).
+icon-source.png (the owner's reference glyph). Pure stdlib -- no PIL/numpy.
+Run from anywhere; paths are relative to the repo root (one level up from
+this file).
 
     python3 .claude/build_icons.py
 
-Crops to the glyph's bounding box, recolors (white-on-navy for the app
-icons, #ced0d3-on-transparent for the small in-app empty-state glyph), and
-box-downsamples to each target size. If the source image or the palette
-changes, rerun this and paste the printed data URI into EMPTY_ICON in
-index.html (the img tag's src="...").
+Crops to the glyph's bounding box, recolors (black-on-#f4f4f4 for the app
+icons, #ced0d3-on-transparent for the small in-app empty-state glyph, which
+lives on the app's navy background so it keeps its own muted color), and
+box-downsamples to each target size. The app icons get extra padding
+(APP_ICON_PAD) beyond the empty-state icon's so the glyph doesn't crowd the
+edges. If the source image or the palette changes, rerun this and paste the
+printed data URI into EMPTY_ICON in index.html (the img tag's src="...").
 """
 import base64
 import os
@@ -19,9 +21,11 @@ import zlib
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 SRC = os.path.join(ROOT, "icon-source.png")
-BG_NAVY = (0x22, 0x28, 0x34)
-FG_WHITE = (255, 255, 255)
+BG_LIGHT = (0xF4, 0xF4, 0xF4)
+FG_BLACK = (0x00, 0x00, 0x00)
 FG_MUTED = (0xCE, 0xD0, 0xD3)
+APP_ICON_PAD = 0.16
+EMPTY_ICON_PAD = 0.06
 
 
 def read_png(path):
@@ -73,12 +77,28 @@ def read_png(path):
     return w, h, channels, bytes(out)
 
 
+DARK_THRESH = 60  # background gradient in icon-source.png peaks around
+                   # darkness 33 (its darkest corner) -- this cutoff plus
+                   # margin keeps that gradient from bleeding through as a
+                   # faint filled square around the glyph
+
+
 def get_alpha(buf, ch, x, y, w):
+    """Coverage of the glyph at this pixel, 0-255. icon-source.png is an
+    opaque image (alpha ~255 throughout) -- the glyph is encoded as dark
+    strokes on a light gradient background, not via transparency -- so
+    coverage comes from darkness (255 - luminance) above DARK_THRESH,
+    contrast-stretched back to 0-255 for smooth anti-aliased edges, then
+    scaled by the real alpha in case a future source uses transparency."""
     i = (y * w + x) * ch
-    if ch == 4:
-        return buf[i + 3]
     r, g, b = buf[i], buf[i + 1], buf[i + 2]
-    return 255 - (r + g + b) // 3
+    darkness = 255 - (r + g + b) // 3
+    if darkness <= DARK_THRESH:
+        coverage = 0
+    else:
+        coverage = min(255, (darkness - DARK_THRESH) * 255 // (255 - DARK_THRESH))
+    real_alpha = buf[i + 3] if ch == 4 else 255
+    return coverage * real_alpha // 255
 
 
 def bbox(buf, ch, w, h, thresh=10):
@@ -104,10 +124,10 @@ def sample_coverage(buf, ch, w, h, x0, y0, x1, y1):
     return (total / count) / 255.0
 
 
-def build(buf, ch, w, h, minx, miny, maxx, maxy, S, fg, bg, alpha_out):
+def build(buf, ch, w, h, minx, miny, maxx, maxy, S, fg, bg, alpha_out, pad_frac):
     bw, bh = maxx - minx + 1, maxy - miny + 1
     side = max(bw, bh)
-    pad = int(side * 0.06)
+    pad = int(side * pad_frac)
     side += pad * 2
     ox = minx - (side - bw) // 2
     oy = miny - (side - bh) // 2
@@ -160,11 +180,11 @@ if __name__ == "__main__":
     minx, miny, maxx, maxy = bbox(buf, ch, w, h)
 
     for S, name in [(512, "icon-512.png"), (180, "icon-180.png")]:
-        pixels = build(buf, ch, w, h, minx, miny, maxx, maxy, S, FG_WHITE, BG_NAVY, alpha_out=False)
+        pixels = build(buf, ch, w, h, minx, miny, maxx, maxy, S, FG_BLACK, BG_LIGHT, alpha_out=False, pad_frac=APP_ICON_PAD)
         write_png(os.path.join(ROOT, name), S, pixels, has_alpha=False)
 
     S = 174  # 3x of the 58px .empty-icon display box
-    pixels = build(buf, ch, w, h, minx, miny, maxx, maxy, S, FG_MUTED, None, alpha_out=True)
+    pixels = build(buf, ch, w, h, minx, miny, maxx, maxy, S, FG_MUTED, None, alpha_out=True, pad_frac=EMPTY_ICON_PAD)
     png_bytes = encode_png(S, pixels, has_alpha=True)
     b64 = base64.b64encode(png_bytes).decode("ascii")
     print(f"empty-icon PNG: {len(png_bytes)} bytes, {len(b64)} base64 chars")

@@ -1,3 +1,7 @@
 # Session-specific dev-server config (regenerated per Claude Code session;
 # see CLAUDE.md's "Commands" section). Contains a local machine path.
 .claude/launch.json
+
+# Python bytecode cache from running .claude/build_icons.py
+__pycache__/
+*.pyc
