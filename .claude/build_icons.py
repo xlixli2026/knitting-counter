@@ -77,17 +77,17 @@ def read_png(path):
     return w, h, channels, bytes(out)
 
 
-DARK_THRESH = 60  # background gradient in icon-source.png peaks around
-                   # darkness 33 (its darkest corner) -- this cutoff plus
-                   # margin keeps that gradient from bleeding through as a
-                   # faint filled square around the glyph
+DARK_THRESH = 60  # icon-source.png's background (flat or gradient, light
+                   # either way) has stayed well under this in every source
+                   # image so far -- the margin keeps it from bleeding
+                   # through as a faint filled square around the glyph
 
 
 def get_alpha(buf, ch, x, y, w):
     """Coverage of the glyph at this pixel, 0-255. icon-source.png is an
     opaque image (alpha ~255 throughout) -- the glyph is encoded as dark
-    strokes on a light gradient background, not via transparency -- so
-    coverage comes from darkness (255 - luminance) above DARK_THRESH,
+    strokes on a light background (flat or gradient), not via transparency
+    -- so coverage comes from darkness (255 - luminance) above DARK_THRESH,
     contrast-stretched back to 0-255 for smooth anti-aliased edges, then
     scaled by the real alpha in case a future source uses transparency."""
     i = (y * w + x) * ch
