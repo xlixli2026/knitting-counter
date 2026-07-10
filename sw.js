@@ -1,6 +1,6 @@
 // Offline cache for the hosted app. Network-first so a deployed update is
 // picked up on the next online visit; cached copy serves when offline.
-var CACHE = "knitting-counter-v7";
+var CACHE = "knitting-counter-v8";
 var ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
 self.addEventListener("install", function (e) {
